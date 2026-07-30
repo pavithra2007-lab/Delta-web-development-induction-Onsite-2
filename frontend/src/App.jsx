@@ -1,38 +1,55 @@
 import React, { useEffect, useRef } from 'react';
-
+import { io } from "socket.io-client";
 function App() {
   const canvasRef = useRef(null);
   const posRef = useRef({ x: 0, y: 0 }); 
-  const score = useRef(0);
-
+  const playerRef = useRef({});
+  const socketRef = useRef(null);
+ 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const interval = setInterval(() => {
-      const X = Math.floor(Math.random() * (canvas.width));
-      const Y = Math.floor(Math.random() * (canvas.height));
-      posRef.current = { x: X, y: Y };
-      
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = 'red';
-      ctx.fillRect(X, Y, 50, 50);
-      ctx.font = "40px Arial";
-      ctx.fillText(`Score : ${score.current}`, 75, 75);
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []); 
+  const canvas = canvasRef.current;
+  const ctx = canvas.getContext("2d");
+  socketRef.current = io("http://localhost:5000");
+  const username = prompt("Enter your name");
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "red";
+    ctx.fillRect(posRef.current.x, posRef.current.y, 50, 50);
+    ctx.font = "30px Arial";
+    let y = 40;
+    for (let id in playerRef.current) {
+      ctx.fillText(`${playerRef.current[id].username}: ${playerRef.current[id].score}`, 20, y);
+      y += 40;
+    }
+  }
+  socketRef.current.emit("canvasSize", { 
+    width: window.innerWidth,
+    height: window.innerHeight,
+});
+  socketRef.current.emit("newPlayer", {username,});
+  socketRef.current.on("squareUpdate", (square) => {
+    posRef.current = square;
+    draw();
+  });
+  socketRef.current.on("scoreUpdate", (players) => {
+    playerRef.current = players;
+    draw();
+  });
+  socketRef.current.on("winner", (data) => { alert(`${data.username} won!`);
+});
 
+  return () => {
+    socketRef.current.disconnect();
+  };
+}, []);
   const handleClick = (event) => {
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const currentPos = posRef.current;
-    if (x >= currentPos.x && x <= currentPos.x + 50 && y >= currentPos.y && y <= currentPos.y + 50) {
-      score.current += 1;
-    }
-  };
+    socketRef.current.emit("hit", {x,y});
+    };
+ 
 
   return (
     <div>
